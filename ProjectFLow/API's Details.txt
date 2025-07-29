@@ -1,0 +1,41 @@
+
+To get data about drivers edit the years
+- jolpi
+https://api.jolpi.ca/ergast/f1/2025/drivers
+
+To get data about race results 
+- jolpi
+https://api.jolpi.ca/ergast/f1/2025/results
+
+To get data about sprint results 
+- jolpi
+https://api.jolpi.ca/ergast/f1/2025/sprint
+
+To get data about Weekend 
+- open f1
+needs a session key
+https://api.openf1.org/v1/session_result?session_key=7782
+
+Meetings to get all the information about races seach also by year or nothing
+- open f1
+https://api.openf1.org/v1/meetings
+https://api.openf1.org/v1/meetings?year=2025
+
+
+To get details about all the Sessions (qual,Free Practice , )
+- open f1
+https://api.openf1.org/v1/sessions?meeting_key=1265&year=2025
+
+
+To get details about starting grid 
+- open f1
+https://api.openf1.org/v1/starting_grid
+
+To get details about drivers Standing
+- jolpi
+https://api.jolpi.ca/ergast/f1/2025/driverstandings
+
+
+To get details about constructoer Standing
+- Jolpi 
+https://api.jolpi.ca/ergast/f1/2025/constructorstandings

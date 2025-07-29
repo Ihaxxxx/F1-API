@@ -1,0 +1,30 @@
+F1 Api
+
+
+- Page : Home Page
+
+- List of all the years showing the recent  
+List of all the races/metings
+api call : https://api.openf1.org/v1/meetings?year=2025
+- Things to get from this API call
+1. Get the meeting key 
+
+On click show the all sessions FP 1/2/3 Qualifying Sprint Race etc 
+https://api.openf1.org/v1/sessions?meeting_key=1265&year=2025
+display all the sessions
+Allow the user to click on the session
+- Things to get from this API call
+1. Session Key'
+
+
+
+- Page : Drivers
+
+
+
+
+
+- To get the flag of the country for thr meeting
+import { alpha3ToAlpha2 } from "@/utils/isoCodes";
+const alpha2Code = alpha3ToAlpha2[data.country_code];
+const flagUrl = `https://flagcdn.com/w80/${alpha2Code.toLowerCase()}.png`;
