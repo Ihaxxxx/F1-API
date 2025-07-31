@@ -1,5 +1,9 @@
+'use server'
 import { countryNameToCode } from "./countryNameToCode";
 import { teamColors } from "./teamColors";
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+// main page
 export async function fetchNextRaceHomePage() {
   const now = new Date();
   const res = await fetch(`https://api.jolpi.ca/ergast/f1/${now.getFullYear()}/races/`);
@@ -20,7 +24,7 @@ export async function fetchNextRaceHomePage() {
   };
 }
 
-
+// main page
 export async function dataForBarChartMainPage(year: number) {
   const response = await fetch(
     `https://api.jolpi.ca/ergast/f1/${year}/last/driverstandings?limit=3`
@@ -66,3 +70,31 @@ export async function dataForBarChartMainPage(year: number) {
 }
 
 
+
+// drivers
+export async function dataForDriverListDriversPage(year: number) {
+  const res = await fetch("http://localhost:3000/data/driverMetadata.json");
+   const openf1Metadata = await res.json();
+  const response = await fetch(
+    `https://api.jolpi.ca/ergast/f1/${year}/drivers/`
+  );
+  const dataDrivers = await response.json();
+  const jolpiDrivers = dataDrivers.MRData.DriverTable.Drivers;
+  const enriched = jolpiDrivers.map((driver: any) => {
+    const match = openf1Metadata.find((meta: any) => {
+      return (
+        meta.code === driver.code ||
+        meta.driver_number == driver.permanentNumber ||
+        meta.full_name?.toLowerCase().includes(driver.familyName?.toLowerCase())
+      );
+    });
+    return {
+      ...driver,
+      full_name: `${driver.givenName} ${driver.familyName}`,
+      team_name: match?.team_name ?? "Unknown",
+      headshot_url: match?.headshot_url ?? null,
+      driver_number: match?.driver_number ?? null,
+    };
+  });
+  return enriched;
+}

@@ -1,6 +1,6 @@
-import HeroSection from "../components/hero-section"
+import HeroSection from "../components/home-page/hero-section"
 import { fetchNextRaceHomePage } from "@/utils/api-calls"
-import NextRaceSection from "@/components/NextRaceSection"
+import NextRaceSection from "@/components/home-page/NextRaceSection"
 import { BarChartDriversStandings } from "@/components/ui/BarChartDriversStandings"
 export default async function Home() {
 const race = await fetchNextRaceHomePage()
