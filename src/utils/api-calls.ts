@@ -32,9 +32,7 @@ export async function dataForBarChartMainPage(year: number) {
   const dataDrivers = await response.json();
   const standings =
     dataDrivers.MRData.StandingsTable.StandingsLists[0].DriverStandings;
-
   const combinedData = [];
-
   for (const driver of standings.slice(0, 3)) {
     try {
       const driverId = driver.Driver.driverId;
@@ -47,11 +45,9 @@ export async function dataForBarChartMainPage(year: number) {
         console.warn(`Constructor info missing for driver ${driverId} in year ${year}`);
         continue; 
       }
-
       const constructorId = constructorObj.constructorId;
       const constructorName = constructorObj.name;
       const teamColor = teamColors[constructorName] ;
-
       combinedData.push({
         name: `${driver.Driver.givenName} ${driver.Driver.familyName}`,
         position: driver.position,
@@ -72,29 +68,75 @@ export async function dataForBarChartMainPage(year: number) {
 
 
 // drivers
-export async function dataForDriverListDriversPage(year: number) {
-  const res = await fetch("http://localhost:3000/data/driverMetadata.json");
-   const openf1Metadata = await res.json();
-  const response = await fetch(
-    `https://api.jolpi.ca/ergast/f1/${year}/drivers/`
-  );
-  const dataDrivers = await response.json();
-  const jolpiDrivers = dataDrivers.MRData.DriverTable.Drivers;
-  const enriched = jolpiDrivers.map((driver: any) => {
-    const match = openf1Metadata.find((meta: any) => {
-      return (
-        meta.code === driver.code ||
-        meta.driver_number == driver.permanentNumber ||
-        meta.full_name?.toLowerCase().includes(driver.familyName?.toLowerCase())
+type EnrichedDriver = {
+  full_name: string;
+  team_name: string;
+  headshot_url: string | null;
+  driver_number: number | null;
+  [key: string]: any;
+};
+// In-memory cache (per serverless function instance)
+const enrichedDriverCache: Map<number, { timestamp: number, data: EnrichedDriver[] }> = new Map();
+const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
+
+export async function fetchEnrichedDriversForYear(year: number): Promise<EnrichedDriver[]> {
+  const cached = enrichedDriverCache.get(year);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const ergastRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/drivers/`);
+  const ergastData = await ergastRes.json();
+  const jolpiDrivers = ergastData.MRData.DriverTable.Drivers;
+
+  const meetingsRes = await fetch(`https://api.openf1.org/v1/meetings?year=${year}`);
+  const meetingData = await meetingsRes.json();
+  const meetingKeys = [...new Set(meetingData.map((m: any) => m.meeting_key))];
+
+  async function findFullDriverData(driver: any) {
+    for (const meetingKey of meetingKeys.slice().reverse()) {
+      const res = await fetch(`https://api.openf1.org/v1/drivers?meeting_key=${meetingKey}`);
+      if (!res.ok) continue;
+      const meetingDrivers = await res.json();
+      const match = meetingDrivers.find((d: any) =>
+        d.driver_number == driver.permanentNumber ||
+        d.full_name?.toLowerCase().includes(driver.familyName.toLowerCase())
       );
-    });
-    return {
+      if (match && match.team_name && match.headshot_url && match.driver_number) {
+        return match;
+      }
+    }
+    return null;
+  }
+
+  const enriched = [];
+
+  for (const driver of jolpiDrivers) {
+    const openf1Match = await findFullDriverData(driver);
+
+    enriched.push({
       ...driver,
       full_name: `${driver.givenName} ${driver.familyName}`,
-      team_name: match?.team_name ?? "Unknown",
-      headshot_url: match?.headshot_url ?? null,
-      driver_number: match?.driver_number ?? null,
-    };
+      team_name: openf1Match?.team_name ?? "Unknown",
+      headshot_url: openf1Match?.headshot_url ?? null,
+      driver_number: openf1Match?.driver_number ?? null,
+    });
+  }
+
+  // Store in cache
+  enrichedDriverCache.set(year, {
+    timestamp: Date.now(),
+    data: enriched,
   });
+
   return enriched;
+}
+
+
+export async function dataForDriverHeading(year: number, driverId : string) {
+  const response = await fetch(
+    `https://api.jolpi.ca/ergast/f1/${year}/drivers/${driverId}/driverstandings/`
+  );
+  let data = response.json()
+  return data
 }
