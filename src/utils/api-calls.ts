@@ -1,6 +1,10 @@
 'use server'
 import { countryNameToCode } from "./countryNameToCode";
 import { teamColors } from "./teamColors";
+import { getCachedDrivers, setCachedDrivers } from './cache';
+import { getRoundsOfRacesOfYear } from "./getRoundsOfRacesOfYear";
+import { asyncPool } from "./asyncPool";
+import { fetchWithRetries } from "./fetchWithRetries";
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
 // main page
@@ -75,20 +79,28 @@ type EnrichedDriver = {
   driver_number: number | null;
   [key: string]: any;
 };
-// In-memory cache (per serverless function instance)
-const enrichedDriverCache: Map<number, { timestamp: number, data: EnrichedDriver[] }> = new Map();
-const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 
 export async function fetchEnrichedDriversForYear(year: number): Promise<EnrichedDriver[]> {
-  const cached = enrichedDriverCache.get(year);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.data;
-  }
+  const cached = await getCachedDrivers(year);
+  if (cached) return cached;
 
+  // 1. Fetch Ergast driver list
   const ergastRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/drivers/`);
   const ergastData = await ergastRes.json();
   const jolpiDrivers = ergastData.MRData.DriverTable.Drivers;
 
+  // 2. Fetch driver standings (to get points)
+  const standingsRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/driverStandings.json`);
+  const standingsData = await standingsRes.json();
+  const standingsList = standingsData.MRData.StandingsTable.StandingsLists[0]?.DriverStandings || [];
+
+  // Create map of driverId -> points
+  const pointsMap = new Map<string, number>();
+  for (const entry of standingsList) {
+    pointsMap.set(entry.Driver.driverId, parseFloat(entry.points));
+  }
+
+  // 3. Fetch OpenF1 meeting keys
   const meetingsRes = await fetch(`https://api.openf1.org/v1/meetings?year=${year}`);
   const meetingData = await meetingsRes.json();
   const meetingKeys = [...new Set(meetingData.map((m: any) => m.meeting_key))];
@@ -109,10 +121,12 @@ export async function fetchEnrichedDriversForYear(year: number): Promise<Enriche
     return null;
   }
 
+  // 4. Enrich driver data
   const enriched = [];
 
   for (const driver of jolpiDrivers) {
     const openf1Match = await findFullDriverData(driver);
+    const points = pointsMap.get(driver.driverId) || 0;
 
     enriched.push({
       ...driver,
@@ -120,32 +134,77 @@ export async function fetchEnrichedDriversForYear(year: number): Promise<Enriche
       team_name: openf1Match?.team_name ?? "Unknown",
       headshot_url: openf1Match?.headshot_url ?? null,
       driver_number: openf1Match?.driver_number ?? null,
+      points, // ✅ Added points here
     });
   }
 
-  // Store in cache
-  enrichedDriverCache.set(year, {
-    timestamp: Date.now(),
-    data: enriched,
-  });
-
+  // 5. Cache and return
+  await setCachedDrivers(year, enriched);
   return enriched;
 }
 
 
-export async function dataForDriverHeading(year: number, driverNameId : string) {
 
+export async function dataForDriverHeading(year: number, driverNameId : string) {
+  
   const driverData = await fetch(
     `https://api.jolpi.ca/ergast/f1/${year}/drivers/${driverNameId}/driverstandings/`
   );
   let res = await driverData.json()
-  const permanentNumber = res.MRData.StandingsTable.StandingsLists[0].DriverStandings[0].Driver.permanentNumber;
-  return permanentNumber
-  let driverImage = await fetch(`https://api.openf1.org/v1/drivers?driver_number=${permanentNumber}&session_key=latest`)
-  let driverImageData = await driverImage.json();
-  let data = res.MRData.StandingsTable.StandingsLists[0]
+  let dataOfJolpi = res.MRData.StandingsTable.StandingsLists[0]
+  
+
+  // Fetch driver image and number from OpenF1 API by using the driver code
+  const driverCode = res.MRData.StandingsTable.StandingsLists[0].DriverStandings[0].Driver.code;
+  
+
+  // Fetch driver data from OpenF1 API
+  let driverOpenF1 = await fetch(`https://api.openf1.org/v1/drivers?name_acronym=${driverCode}&session_key=latest`)
+  let driverOpenF1Data = await driverOpenF1.json();
+
+  
   let combinedData = {
-    ...data,
-    driverImage: driverImageData[0]?.headshot_url || null,}
+    ...dataOfJolpi,
+    driverImage: driverOpenF1Data[0]?.headshot_url || null,
+    driverNumberOpenF1 : driverOpenF1Data[0]?.driver_number || null }
   return combinedData
 }
+
+
+export async function dataForDriverLineChart(driverId: string, year: number) {
+  let rounds = await getRoundsOfRacesOfYear(year);
+  
+  const enrichedRounds = await asyncPool(1, rounds, async (round: any) => {
+    const url = `https://api.jolpi.ca/ergast/f1/${year}/${round.round}/drivers/${driverId}/driverstandings/`;
+    
+    try {
+      const response = await fetchWithRetries(url, 3, 500);
+
+      const data = await response.json();
+      const standingsList = data.MRData.StandingsTable.StandingsLists;
+
+      if (
+        !standingsList ||
+        standingsList.length === 0 ||
+        !standingsList[0].DriverStandings ||
+        standingsList[0].DriverStandings.length === 0
+      ) {
+        console.warn(`No standings data for round ${round.round} (${round.raceName})`);
+        return { ...round, points: 0, position: "N/A" };
+      }
+
+      const standings = standingsList[0].DriverStandings[0];
+      return {
+        ...round,
+        points: Number(standings.points),
+        position: Number(standings.position),
+      };
+    } catch (err) {
+      console.error(`Failed after retries for round ${round.round}:`, err);
+      return { ...round, points: 0, position: "N/A" };
+    }
+  });
+
+  return enrichedRounds;
+}
+

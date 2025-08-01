@@ -19,8 +19,6 @@ export function BarChartDriversStandings() {
       setLoading(true);
       try {
         const data = await dataForBarChartMainPage(year);
-
-        console.log(data)
         const formattedData = data.map((item: any) => {
           const name = item.name || "Unknown";
           const points = Number(item.points) || 0;
