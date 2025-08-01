@@ -133,10 +133,19 @@ export async function fetchEnrichedDriversForYear(year: number): Promise<Enriche
 }
 
 
-export async function dataForDriverHeading(year: number, driverId : string) {
-  const response = await fetch(
-    `https://api.jolpi.ca/ergast/f1/${year}/drivers/${driverId}/driverstandings/`
+export async function dataForDriverHeading(year: number, driverNameId : string) {
+
+  const driverData = await fetch(
+    `https://api.jolpi.ca/ergast/f1/${year}/drivers/${driverNameId}/driverstandings/`
   );
-  let data = response.json()
-  return data
+  let res = await driverData.json()
+  const permanentNumber = res.MRData.StandingsTable.StandingsLists[0].DriverStandings[0].Driver.permanentNumber;
+  return permanentNumber
+  let driverImage = await fetch(`https://api.openf1.org/v1/drivers?driver_number=${permanentNumber}&session_key=latest`)
+  let driverImageData = await driverImage.json();
+  let data = res.MRData.StandingsTable.StandingsLists[0]
+  let combinedData = {
+    ...data,
+    driverImage: driverImageData[0]?.headshot_url || null,}
+  return combinedData
 }

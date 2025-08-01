@@ -1,54 +1,98 @@
-import { dataForDriverHeading } from "@/utils/api-calls"
+"use client";
+
+import Spinner from "../spinner";
 
 type Props = {
-  driverData: any;
+  driverData: {
+    DriverStandings: Array<{
+      Driver: {
+        givenName: string;
+        familyName: string;
+        nationality: string;
+        driverId: string;
+        permanentNumber: string;
+        code: string;
+        dateOfBirth: string;
+        url: string;
+      };
+      Constructors: Array<{
+        constructorId: string;
+        name: string;
+        nationality: string;
+        url: string;
+      }>;
+      points: string;
+      position: string;
+      wins: string;
+    }>;
+    round: string;
+    season: string;
+    driverImage: string;
+  };
 };
 
+export default function DriverHeading({ driverData }: Props) {
+  if (!driverData?.DriverStandings?.length) {
+    return (
+      <div className="p-4 text-center text-red-500 font-semibold">
+        <Spinner text="Loading Driver Data"></Spinner>
+      </div>
+    );
+  }
 
-export default function DriverHeading( { driverData }: Props) {
-    console.log(driverData);
+  const standing = driverData.DriverStandings[0];
+  const driver = standing.Driver;
+  const team = standing.Constructors[0];
+
   return (
-    <div className="md:flex md:items-center md:justify-between md:space-x-5">
-      <div className="flex items-start space-x-5">
-        <div className="shrink-0">
-          <div className="relative">
-            {/* <img
-              alt=""
-              src="https://images.unsplash.com/photo-1463453091185-61582044d556?ixlib=rb-=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=8&w=1024&h=1024&q=80"
-              className="size-16 rounded-full"
-            /> */}
-            <span aria-hidden="true" className="absolute inset-0 rounded-full shadow-inner" />
-          </div>
-        </div>
-        {/*
-          Use vertical padding to simulate center alignment when both lines of text are one line,
-          but preserve the same layout if the text wraps without making the image jump around.
-        */}
-        <div className="pt-1.5">
-          <h1 className="text-2xl font-bold text-gray-900">Ricardo Cooper</h1>
-          <p className="text-sm font-medium text-gray-500">
-            Applied for{' '}
-            <a href="#" className="text-gray-900">
-              Front End Developer
-            </a>{' '}
-            on <time dateTime="2020-08-25">August 25, 2020</time>
-          </p>
+  <div className="md:flex md:items-center md:justify-between md:space-x-5 border p-5 rounded-xl shadow-xl bg-foreground text-background">
+    <div className="flex items-start space-x-5">
+      {/* Driver Image */}
+      <div className="shrink-0">
+        <div className="relative size-20 rounded-full overflow-hidden border-4 border-black shadow-md">
+          <img
+            alt={`${driver.givenName} ${driver.familyName}`}
+            src={driverData.driverImage}
+            className="object-cover w-full h-full"
+          />
         </div>
       </div>
-      <div className="mt-6 flex flex-col-reverse justify-stretch space-y-4 space-y-reverse sm:flex-row-reverse sm:justify-end sm:space-x-3 sm:space-y-0 sm:space-x-reverse md:mt-0 md:flex-row md:space-x-3">
-        <button
-          type="button"
-          className="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-        >
-          Disqualify
-        </button>
-        <button
-          type="button"
-          className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-        >
-          Advance to offer
-        </button>
+
+      {/* Driver Info */}
+      <div className="pt-1.5">
+        <h1 className="text-3xl font-f1bold tracking-wide">
+          {driver.givenName} {driver.familyName}{" "}
+          <span className="text-muted-foreground text-lg">#{driver.permanentNumber}</span>
+        </h1>
+        <p className="text-sm mt-1 text-muted-foreground">
+          Nationality:{" "}
+          <span className="font-semibold text-background">{driver.nationality}</span> | Team:{" "}
+          <a
+            href={team.url}
+            className="font-semibold text-accent hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {team.name}
+          </a>
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Season: <span className="font-semibold text-background">{driverData.season}</span> | Round:{" "}
+          <span className="font-semibold text-background">{driverData.round}</span>
+        </p>
       </div>
     </div>
-  )
+
+    {/* Stats */}
+    <div className="mt-6 flex flex-col-reverse justify-stretch space-y-4 space-y-reverse sm:flex-row-reverse sm:justify-end sm:space-x-3 sm:space-y-0 sm:space-x-reverse md:mt-0 md:flex-row md:space-x-3">
+      <div className="flex flex-col items-end text-right pr-2">
+        <p className="text-sm text-muted-foreground">Points</p>
+        <p className="text-2xl font-bold text-yellow-600">{standing.points}</p>
+        <p className="text-sm text-muted-foreground">Position</p>
+        <p className="text-2xl font-bold text-green-600">#{standing.position}</p>
+      </div>
+    </div>
+  </div>
+);
+
 }

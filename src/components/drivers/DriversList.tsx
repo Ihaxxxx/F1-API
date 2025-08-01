@@ -45,7 +45,7 @@ export default function DriverList() {
 
 
   useEffect(() => {
-    console.log(drivers[5])
+    console.log(drivers[20])
   }, [drivers])
 
   if (loading) {
@@ -84,7 +84,7 @@ export default function DriverList() {
             className="bg-black hover:bg-gray-800 transition cursor-pointer"
           >
             <Link
-              href={`/drivers/${driver.driverId}`}
+              href={`/drivers/${driver.driverId}-${driver.permanentNumber}`}
               className="flex items-center justify-between gap-x-6 py-5"
             >
               <div className="flex min-w-0 gap-x-4">
