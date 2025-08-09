@@ -6,7 +6,7 @@ import { getRoundsOfRacesOfYear } from "./getRoundsOfRacesOfYear";
 import { asyncPool } from "./asyncPool";
 import { fetchWithRetries } from "./fetchWithRetries";
 import { nationalityToCountryCode } from "@/lib/nationalityToCountryCode";
-import { Code } from "lucide-react";
+import { delay } from "./delay";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
@@ -435,66 +435,31 @@ export async function RaceList(year: number) {
 }
 
 export async function getRaceDetails(year: string, round: string) {
+  const baseUrl = `https://api.jolpi.ca/ergast/f1/${year}/${round}`;
+  const urls = [
+    `${baseUrl}.json`,
+    `${baseUrl}/qualifying.json`,
+    `${baseUrl}/results.json`,
+    `${baseUrl}/grid.json`,
+    `${baseUrl}/practice1.json`,
+    `${baseUrl}/practice2.json`,
+    `${baseUrl}/practice3.json`
+  ];
+
   try {
-    // URLs
-    const baseUrl = `https://api.jolpi.ca/ergast/f1/${year}/${round}`;
-    const urls = {
-      race: `${baseUrl}.json`,
-      qualifying: `${baseUrl}/qualifying.json`,
-      results: `${baseUrl}/results.json`,
-      grid: `${baseUrl}/grid.json`,
-      fp1: `${baseUrl}/practice1.json`,
-      fp2: `${baseUrl}/practice2.json`,
-      fp3: `${baseUrl}/practice3.json`,
-    };
+    const data: any[] = [];
+    for (const url of urls) {
+      const res = await fetch(url);
+      data.push(await res.json());
+      await delay(300); // prevent hammering the API
+    }
 
-    // Fetch all in parallel
-    const [
-      raceRes,
-      qualifyingRes,
-      resultsRes,
-      gridRes,
-      fp1Res,
-      fp2Res,
-      fp3Res,
-    ] = await Promise.all([
-      fetch(urls.race),
-      fetch(urls.qualifying),
-      fetch(urls.results),
-      fetch(urls.grid),
-      fetch(urls.fp1),
-      fetch(urls.fp2),
-      fetch(urls.fp3),
-    ]);
-
-    const [
-      raceData,
-      qualifyingData,
-      resultsData,
-      gridData,
-      fp1Data,
-      fp2Data,
-      fp3Data,
-    ] = await Promise.all([
-      raceRes.json(),
-      qualifyingRes.json(),
-      resultsRes.json(),
-      gridRes.json(),
-      fp1Res.json(),
-      fp2Res.json(),
-      fp3Res.json(),
-    ]);
+    const [raceData, qualifyingData, resultsData, gridData, fp1Data, fp2Data, fp3Data] = data;
 
     const raceInfo = raceData.MRData?.RaceTable?.Races?.[0] || {};
     const raceResults = resultsData.MRData?.RaceTable?.Races?.[0]?.Results || [];
-    const startingGrid = gridData.MRData?.RaceTable?.Races?.[0]?.QualifyingList || [];
     const circuit = raceInfo.Circuit || {};
 
-    const fp1 = fp1Data.MRData?.RaceTable?.Races?.[0]?.Results || [];
-    const fp2 = fp2Data.MRData?.RaceTable?.Races?.[0]?.Results || [];
-    const fp3 = fp3Data.MRData?.RaceTable?.Races?.[0]?.Results || [];
-
-    // Fastest Lap - from race results
     const fastestLap = raceResults.find(
       (driver: any) => driver.FastestLap?.rank === "1"
     );
@@ -503,18 +468,11 @@ export async function getRaceDetails(year: string, round: string) {
       circuit,
       raceInfo,
       qualifyingResults: qualifyingData.MRData?.RaceTable?.Races?.[0]?.QualifyingResults || [],
-      startingGrid,
       raceResults,
       fastestLap,
-      practiceResults: {
-        fp1,
-        fp2,
-        fp3,
-      },
     };
   } catch (error) {
     console.error("Error fetching race details:", error);
     return null;
   }
 }
-
