@@ -1,10 +1,13 @@
 'use server'
-import { countryNameToCode } from "./countryNameToCode";
+import { countryNameToCode } from "../lib/countryNameToCode";
 import { teamColors } from "./teamColors";
 import { getCachedDrivers, setCachedDrivers } from './cache';
 import { getRoundsOfRacesOfYear } from "./getRoundsOfRacesOfYear";
 import { asyncPool } from "./asyncPool";
 import { fetchWithRetries } from "./fetchWithRetries";
+import { nationalityToCountryCode } from "@/lib/nationalityToCountryCode";
+import { Code } from "lucide-react";
+
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
 // main page
@@ -47,11 +50,11 @@ export async function dataForBarChartMainPage(year: number) {
       const constructorObj = constructorData.MRData.StandingsTable.StandingsLists[0]?.DriverStandings[0]?.Constructors?.[0];
       if (!constructorObj) {
         console.warn(`Constructor info missing for driver ${driverId} in year ${year}`);
-        continue; 
+        continue;
       }
       const constructorId = constructorObj.constructorId;
       const constructorName = constructorObj.name;
-      const teamColor = teamColors[constructorName] ;
+      const teamColor = teamColors[constructorName];
       combinedData.push({
         name: `${driver.Driver.givenName} ${driver.Driver.familyName}`,
         position: driver.position,
@@ -71,7 +74,6 @@ export async function dataForBarChartMainPage(year: number) {
 
 
 
-// drivers
 type EnrichedDriver = {
   full_name: string;
   team_name: string;
@@ -137,74 +139,382 @@ export async function fetchEnrichedDriversForYear(year: number): Promise<Enriche
       points, // ✅ Added points here
     });
   }
-
-  // 5. Cache and return
   await setCachedDrivers(year, enriched);
   return enriched;
 }
 
 
 
-export async function dataForDriverHeading(year: number, driverNameId : string) {
-  
+export async function dataForDriverHeading(year: number, driverNameId: string) {
+
   const driverData = await fetch(
     `https://api.jolpi.ca/ergast/f1/${year}/drivers/${driverNameId}/driverstandings/`
   );
   let res = await driverData.json()
   let dataOfJolpi = res.MRData.StandingsTable.StandingsLists[0]
-  
+
 
   // Fetch driver image and number from OpenF1 API by using the driver code
   const driverCode = res.MRData.StandingsTable.StandingsLists[0].DriverStandings[0].Driver.code;
-  
-
+  const driverNationality = res.MRData.StandingsTable.StandingsLists[0].DriverStandings[0].Driver.nationality;
+  const code = nationalityToCountryCode[driverNationality]?.toLowerCase();
+  const flagUrl = `https://flagcdn.com/w80/${code}.png`;
   // Fetch driver data from OpenF1 API
-  let driverOpenF1 = await fetch(`https://api.openf1.org/v1/drivers?name_acronym=${driverCode}&session_key=latest`)
+  let driverOpenF1 = await fetch(`https://api.openf1.org/v1/drivers?name_acronym=${driverCode}&meeting_key=latest`)
   let driverOpenF1Data = await driverOpenF1.json();
 
-  
+
   let combinedData = {
     ...dataOfJolpi,
     driverImage: driverOpenF1Data[0]?.headshot_url || null,
-    driverNumberOpenF1 : driverOpenF1Data[0]?.driver_number || null }
+    driverNumberOpenF1: driverOpenF1Data[0]?.driver_number || null,
+    flagUrl: flagUrl,
+  }
   return combinedData
 }
 
 
 export async function dataForDriverLineChart(driverId: string, year: number) {
   let rounds = await getRoundsOfRacesOfYear(year);
-  
   const enrichedRounds = await asyncPool(1, rounds, async (round: any) => {
-    const url = `https://api.jolpi.ca/ergast/f1/${year}/${round.round}/drivers/${driverId}/driverstandings/`;
-    
     try {
-      const response = await fetchWithRetries(url, 3, 500);
+      // Fetch race result
+      const raceResultUrl = `https://api.jolpi.ca/ergast/f1/${year}/${round.round}/drivers/${driverId}/results/`;
+      const raceResultRes = await fetchWithRetries(raceResultUrl, 3, 500);
+      const raceResultData = await raceResultRes.json();
 
-      const data = await response.json();
-      const standingsList = data.MRData.StandingsTable.StandingsLists;
+      const race = raceResultData.MRData.RaceTable.Races?.[0];
+      // Fetch driver standings after this round
+      const standingsUrl = `https://api.jolpi.ca/ergast/f1/${year}/${round.round}/driverStandings/`;
+      const standingsRes = await fetchWithRetries(standingsUrl, 3, 500);
+      const standingsData = await standingsRes.json();
 
-      if (
-        !standingsList ||
-        standingsList.length === 0 ||
-        !standingsList[0].DriverStandings ||
-        standingsList[0].DriverStandings.length === 0
-      ) {
-        console.warn(`No standings data for round ${round.round} (${round.raceName})`);
-        return { ...round, points: 0, position: "N/A" };
+      const standingsList = standingsData.MRData.StandingsTable.StandingsLists?.[0];
+      const driverStanding = standingsList?.DriverStandings?.find(
+        (d: any) => d.Driver.driverId === driverId
+      );
+
+      if (!race || !race.Results?.[0] || !driverStanding) {
+        return {
+          round: round.round,
+          raceName: round.raceName,
+          country: null,
+          flag: null,
+          position: null,
+          championshipPosition: null,
+          points: null,
+        };
       }
+      const country = race.Circuit?.Location?.country ?? "Unknown";
+      const raceDate = race.date
+      const countryCode = countryNameToCode[country] || "unknown";
+      const flag = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
 
-      const standings = standingsList[0].DriverStandings[0];
+      // Race finishing position
+      const position = race.Results[0].position ?? null;
+
+      // Championship position and points after this round
+      const championshipPosition = Number(driverStanding.position) ?? null;
+      const points = driverStanding.points ?? null;
+
+
+      // Optional delay between requests
+      await new Promise((res) => setTimeout(res, 400));
+
       return {
-        ...round,
-        points: Number(standings.points),
-        position: Number(standings.position),
+        round: round.round,
+        raceName: round.raceName,
+        country,
+        flag,
+        position,
+        championshipPosition,
+        points,
+        raceDate,
       };
+
     } catch (err) {
-      console.error(`Failed after retries for round ${round.round}:`, err);
-      return { ...round, points: 0, position: "N/A" };
+      console.error(`Failed to fetch data for round ${round.round}:`, err);
+      return {
+        round: round.round,
+        raceName: round.raceName,
+        country: null,
+        flag: null,
+        position: null,
+        championshipPosition: null,
+        points: null,
+        raceDate: null,
+      };
     }
   });
 
   return enrichedRounds;
+}
+
+export async function raceResultsPageHeading(
+  year: number,
+  driverId: string,
+  round: string
+) {
+  try {
+    // 1. Ergast race result
+    const res = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/${round}/drivers/${driverId}/results/`);
+    const data = await res.json();
+    const race = data?.MRData?.RaceTable?.Races?.[0];
+    const result = race?.Results?.[0];
+
+    if (!race || !result) return null;
+
+    const fullName = `${result.Driver.givenName} ${result.Driver.familyName}`;
+    const permanentNumber = result.Driver.permanentNumber;
+
+    // 2. Country flag
+    const location = race?.Circuit?.Location || {};
+    const country = location.country || "Unknown";
+    const countryCode = countryNameToCode[country] || "unknown";
+    const flag = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
+
+    // 3. Fetch OpenF1 headshot
+    const meetingsRes = await fetch(`https://api.openf1.org/v1/meetings?year=${year}`);
+    const meetingData = await meetingsRes.json();
+    const meetingKeys = [...new Set(meetingData.map((m: any) => m.meeting_key))];
+
+    let openF1Driver = null;
+    for (const meetingKey of meetingKeys.slice().reverse()) {
+      const driverRes = await fetch(`https://api.openf1.org/v1/drivers?meeting_key=${meetingKey}`);
+      if (!driverRes.ok) continue;
+      const openF1Drivers = await driverRes.json();
+      const match = openF1Drivers.find((d: any) =>
+        d.driver_number == permanentNumber ||
+        d.full_name?.toLowerCase().includes(result.Driver.familyName.toLowerCase())
+      );
+      if (match && match.headshot_url) {
+        openF1Driver = match;
+        break;
+      }
+    }
+
+    // 4. Qualifying data
+    const qualRes = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/${round}/drivers/${driverId}/qualifying/`);
+    const qualData = await qualRes.json();
+    const qualResult = qualData?.MRData?.RaceTable?.Races?.[0]?.QualifyingResults?.[0];
+
+    const qualifying = qualResult
+      ? {
+          position: qualResult.position || null,
+          Q1: qualResult.Q1 || null,
+          Q2: qualResult.Q2 || null,
+          Q3: qualResult.Q3 || null,
+        }
+      : null;
+
+    return {
+      circuit: {
+        name: race?.Circuit?.circuitName || "",
+        city: location?.locality || "",
+        country,
+        lat: location.lat || "",
+        long: location.long || "",
+        flag,
+      },
+      constructor: result.Constructor?.name || "",
+      driver: {
+        fullName,
+        nationality: result.Driver.nationality || "",
+        image_url: openF1Driver?.headshot_url || "",
+      },
+      race: {
+        name: race.raceName || "",
+        round: race.round || "",
+        date: race.date || "",
+        totalLaps: result.laps || "",
+      },
+      fastestLap: {
+        time: result.FastestLap?.Time?.time || null,
+        rank: result.FastestLap?.rank || null,
+      },
+      result: {
+        position: result.position || null,
+        points: result.points || null,
+        gapToLeader: result.Time?.time || null,
+      },
+      qualifying, // Added Qualifying section
+    };
+
+  } catch (error) {
+    console.error("Failed to fetch race result:", error);
+    return null;
+  }
+}
+
+
+export async function lapTimes(driverId: string, round: string, year: number) {
+  try {
+    const [responseLaps, responsePitStops] = await Promise.all([
+      fetch(`https://api.jolpi.ca/ergast/f1/${year}/${round}/drivers/${driverId}/laps/?limit=1000`),
+      fetch(`https://api.jolpi.ca/ergast/f1/${year}/${round}/drivers/${driverId}/pitstops/?limit=1000`)
+    ]);
+
+    const lapsData = await responseLaps.json();
+    const pitStopsData = await responsePitStops.json();
+
+    const laps = lapsData?.MRData?.RaceTable?.Races?.[0]?.Laps || [];
+    const pitStops = pitStopsData?.MRData?.RaceTable?.Races?.[0]?.PitStops || [];
+
+    const pitMap: Record<string, { duration: string, stop: string, time: string }> = {};
+    for (const pit of pitStops) {
+      pitMap[pit.lap] = {
+        duration: pit.duration,
+        stop: pit.stop,
+        time: pit.time
+      };
+    }
+
+    function parseTimeToSeconds(timeStr: string): number {
+      const [min, rest] = timeStr.split(":");
+      const [sec, ms] = rest.split(".");
+      return parseInt(min) * 60 + parseInt(sec) + parseInt(ms) / 1000;
+    }
+
+    function formatToMMSSms(timeStr: string): string {
+      const [min, rest] = timeStr.split(":");
+      const [sec, ms] = rest.split(".");
+      return `${min}:${sec}.${ms}`;
+    }
+
+    const enrichedLaps = laps.map((lapObj: any) => {
+      const lapNumber = Number(lapObj.number);
+      const rawTime = lapObj.Timings?.[0]?.time || null;
+      const pitInfo = pitMap[lapObj.number] || null;
+
+      if (!rawTime) return null;
+
+      return {
+        lap: lapNumber,
+        timeInSeconds: parseTimeToSeconds(rawTime),
+        displayTime: formatToMMSSms(rawTime),
+        pitStop: pitInfo,
+        position: lapObj.Timings?.[0]?.position || null,
+      };
+    }).filter(Boolean); // remove nulls if any lap has no timing
+
+    return enrichedLaps;
+  } catch (error) {
+    console.error("lapTimes error:", error);
+    return [];
+  }
+}
+
+export async function RaceList(year: number) {
+  const response = await fetch(`https://api.jolpi.ca/ergast/f1/${year}/races/`);
+  const data = await response.json();
+  const raceList = data.MRData.RaceTable.Races;
+
+  const formattedRaces = raceList.map((race: any) => {
+    const country = race.Circuit.Location.country;
+    const city = race.Circuit.Location.locality;
+    const location = race.Circuit.circuitName;
+    const raceName = race.raceName;
+    const round = race.round;
+    const date = race.date;
+
+    const countryCode = countryNameToCode[country] || "unknown";
+    const flag = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
+
+    return {
+      raceName,
+      round,
+      date,
+      city,
+      country,
+      location,
+      flag
+    };
+  });
+
+  return formattedRaces;
+}
+
+export async function getRaceDetails(year: string, round: string) {
+  try {
+    // URLs
+    const baseUrl = `https://api.jolpi.ca/ergast/f1/${year}/${round}`;
+    const urls = {
+      race: `${baseUrl}.json`,
+      qualifying: `${baseUrl}/qualifying.json`,
+      results: `${baseUrl}/results.json`,
+      grid: `${baseUrl}/grid.json`,
+      fp1: `${baseUrl}/practice1.json`,
+      fp2: `${baseUrl}/practice2.json`,
+      fp3: `${baseUrl}/practice3.json`,
+    };
+
+    // Fetch all in parallel
+    const [
+      raceRes,
+      qualifyingRes,
+      resultsRes,
+      gridRes,
+      fp1Res,
+      fp2Res,
+      fp3Res,
+    ] = await Promise.all([
+      fetch(urls.race),
+      fetch(urls.qualifying),
+      fetch(urls.results),
+      fetch(urls.grid),
+      fetch(urls.fp1),
+      fetch(urls.fp2),
+      fetch(urls.fp3),
+    ]);
+
+    const [
+      raceData,
+      qualifyingData,
+      resultsData,
+      gridData,
+      fp1Data,
+      fp2Data,
+      fp3Data,
+    ] = await Promise.all([
+      raceRes.json(),
+      qualifyingRes.json(),
+      resultsRes.json(),
+      gridRes.json(),
+      fp1Res.json(),
+      fp2Res.json(),
+      fp3Res.json(),
+    ]);
+
+    const raceInfo = raceData.MRData?.RaceTable?.Races?.[0] || {};
+    const raceResults = resultsData.MRData?.RaceTable?.Races?.[0]?.Results || [];
+    const startingGrid = gridData.MRData?.RaceTable?.Races?.[0]?.QualifyingList || [];
+    const circuit = raceInfo.Circuit || {};
+
+    const fp1 = fp1Data.MRData?.RaceTable?.Races?.[0]?.Results || [];
+    const fp2 = fp2Data.MRData?.RaceTable?.Races?.[0]?.Results || [];
+    const fp3 = fp3Data.MRData?.RaceTable?.Races?.[0]?.Results || [];
+
+    // Fastest Lap - from race results
+    const fastestLap = raceResults.find(
+      (driver: any) => driver.FastestLap?.rank === "1"
+    );
+
+    return {
+      circuit,
+      raceInfo,
+      qualifyingResults: qualifyingData.MRData?.RaceTable?.Races?.[0]?.QualifyingResults || [],
+      startingGrid,
+      raceResults,
+      fastestLap,
+      practiceResults: {
+        fp1,
+        fp2,
+        fp3,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching race details:", error);
+    return null;
+  }
 }
 

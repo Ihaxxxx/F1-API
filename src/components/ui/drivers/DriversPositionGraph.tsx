@@ -20,7 +20,9 @@ type ChartData = {
   round: string;
     raceName: string;
     position: number;
-    date: string;
+    raceDate: string;
+    country: string;
+    champoinshipPosition: string;
 }[];
 
 const chartConfig = {
@@ -37,8 +39,8 @@ function CustomTooltip({ active, payload }: any) {
     return (
       <div className="bg-white p-2 rounded shadow-md text-sm text-black">
         <p className="font-semibold">{data.raceName}</p>
-        <p>Date: {new Date(data.date).toLocaleDateString()}</p>
-        <p>Position: {data.position}</p>
+        <p>Date: {new Date(data.raceDate).toLocaleDateString()}</p>
+        <p>Position: {data.championshipPosition}</p>
       </div>
     )
   }
@@ -47,11 +49,12 @@ function CustomTooltip({ active, payload }: any) {
 }
 
 export default function ChartLineLinear({driverId,year,chartData}: {driverId: string,year: number, chartData: ChartData}) {
+    console.log(chartData);
   return (
     <Card className="w-full bg-black border border-white rounded-2xl shadow-md mt-4">
       <CardHeader>
         <CardTitle className="capitalize text-white font-f1bold text-xl md:text-2xl">
-          {driverId.replace("-", " ")} - {year} - Position Over Rounds
+          {driverId.replace("-", " ")} - {year} - World Driver Championship Position Over Rounds
         </CardTitle>
       </CardHeader>
 
@@ -94,7 +97,7 @@ export default function ChartLineLinear({driverId,year,chartData}: {driverId: st
             <Tooltip content={<CustomTooltip />} />
             <Line
               type="monotone"
-              dataKey="position"
+              dataKey="championshipPosition"
               stroke="#FF1801"
               strokeWidth={2}
               dot={{ r: 4, fill: "#FF1801" }}

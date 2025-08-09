@@ -28,21 +28,21 @@ type Props = {
     round: string;
     season: string;
     driverImage: string;
+    flagUrl: string | null;
   };
 };
 
-export default function DriverHeading({ driverData }: Props) { 
-
+export default function DriverHeading({ driverData }: Props) {
   const standing = driverData.DriverStandings[0];
   const driver = standing.Driver;
   const team = standing.Constructors[0];
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between border p-4 md:p-6 rounded-xl shadow-xl bg-foreground text-background space-y-6 md:space-y-0 md:space-x-6">
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between border p-4 md:p-6 rounded-xl shadow-xl bg-foreground text-background bg-black space-y-6 md:space-y-0 md:space-x-6">
       {/* Left: Driver Image + Info + Stats (on mobile) */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1">
         {/* Driver Image */}
-        <div className="relative size-20 rounded-full overflow-hidden border-4 border-black shadow-md">
+        <div className="relative size-20 rounded-full overflow-hidden border-4 border-white shadow-md">
           <img
             alt={`${driver.givenName} ${driver.familyName}`}
             src={driverData.driverImage}
@@ -52,38 +52,63 @@ export default function DriverHeading({ driverData }: Props) {
 
         {/* Info + Stats */}
         <div className="flex flex-col gap-2 w-full">
-          <h1 className="text-2xl sm:text-3xl font-f1bold tracking-wide">
+          <h1 className="text-2xl sm:text-3xl font-f1bold tracking-wide text-f1red-600">
             {driver.givenName} {driver.familyName}{" "}
-            <span className="text-muted-foreground text-lg">#{driver.permanentNumber}</span>
+            <span className="text-muted-foreground text-lg">
+              #{driver.permanentNumber}
+            </span>
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Nationality: <span className="font-semibold text-background">{driver.nationality}</span> | Team:{" "}
+          <p className="text-xl text-muted-foreground flex items-center gap-1">
+            Nationality:
+            <span className="font-medium text-background flex items-center gap-0.5">
+              <img
+                src={driverData.flagUrl || "/default-flag.png"}
+                alt={driver.nationality}
+                className="inline-block size-1 w-6 "
+              />
+              {driver.nationality}
+            </span>
+            | Team:{" "}
             <a
               href={team.url}
-              className="font-semibold text-accent hover:underline"
+              className="font-medium text-accent hover:underline ml-1"
               target="_blank"
               rel="noopener noreferrer"
             >
               {team.name}
             </a>
           </p>
+
           <p className="text-sm text-muted-foreground">
-            Season: <span className="font-semibold text-background">{driverData.season}</span> | Round:{" "}
-            <span className="font-semibold text-background">{driverData.round}</span>
+            Season:{" "}
+            <span className="font-semibold text-background">
+              {driverData.season}
+            </span>{" "}
+            | Round:{" "}
+            <span className="font-semibold text-background">
+              {driverData.round}
+            </span>
           </p>
           <p className="text-sm text-muted-foreground">
-            Wins: <span className="font-semibold text-background">{standing.wins}</span>
+            Wins:{" "}
+            <span className="font-semibold text-background">
+              {standing.wins}
+            </span>
           </p>
 
           {/* Stats for mobile only */}
           <div className="flex flex-row sm:hidden gap-6 mt-2">
             <div>
               <p className="text-sm text-muted-foreground ">Points</p>
-              <p className="text-xl font-bold text-yellow-600">{standing.points}</p>
+              <p className="text-xl font-bold text-yellow-600">
+                {standing.points}
+              </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Position</p>
-              <p className="text-xl font-bold text-green-600 ">#{standing.position}</p>
+              <p className="text-xl font-bold text-green-600 ">
+                #{standing.position}
+              </p>
             </div>
           </div>
         </div>
@@ -93,15 +118,17 @@ export default function DriverHeading({ driverData }: Props) {
       <div className="hidden sm:flex flex-col items-end text-right gap-2">
         <div>
           <p className="text-sm text-muted-foreground">Points</p>
-          <p className="text-2xl font-bold text-yellow-600">{standing.points}</p>
+          <p className="text-2xl font-bold text-yellow-600">
+            {standing.points}
+          </p>
         </div>
         <div>
           <p className="text-sm text-muted-foreground">Position</p>
-          <p className="text-2xl font-bold text-green-600">#{standing.position}</p>
+          <p className="text-2xl font-bold text-green-600">
+            #{standing.position}
+          </p>
         </div>
       </div>
     </div>
   );
 }
-
-

@@ -15,13 +15,14 @@ import {
 } from "@/components/ui/chart"
 
 
-export const description = "A linear line chart"
 
 type ChartData = {
   round: string;
-    raceName: string   ;
-    points: number;
-    date: string;
+    raceName: string;
+    position: number;
+    raceDate: string;
+    country: string;
+    champoinshipPosition: string;
 }[];
 
 const chartConfig = {
@@ -38,7 +39,7 @@ function CustomTooltip({ active, payload }: any) {
     return (
       <div className="bg-white p-2 rounded shadow-md text-sm text-black">
         <p className="font-semibold">{data.raceName}</p>
-        <p>Date: {new Date(data.date).toLocaleDateString()}</p>
+        <p>Date: {new Date(data.raceDate).toLocaleDateString()}</p>
         <p>Points: {data.points}</p>
       </div>
     )
@@ -48,6 +49,7 @@ function CustomTooltip({ active, payload }: any) {
 }
 
 export default function ChartLineLinear({driverId,year,chartData}: {driverId: string,year: number, chartData: ChartData}) {
+  console.log(chartData);
   return (
     <Card className="w-full bg-black border border-white rounded-2xl shadow-md mt-4">
       <CardHeader>
