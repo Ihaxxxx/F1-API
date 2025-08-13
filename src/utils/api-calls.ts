@@ -300,11 +300,11 @@ export async function raceResultsPageHeading(
 
     const qualifying = qualResult
       ? {
-          position: qualResult.position || null,
-          Q1: qualResult.Q1 || null,
-          Q2: qualResult.Q2 || null,
-          Q3: qualResult.Q3 || null,
-        }
+        position: qualResult.position || null,
+        Q1: qualResult.Q1 || null,
+        Q2: qualResult.Q2 || null,
+        Q3: qualResult.Q3 || null,
+      }
       : null;
 
     return {
@@ -434,7 +434,10 @@ export async function RaceList(year: number) {
   return formattedRaces;
 }
 
-export async function getRaceDetails(year: string, round: string) {
+export async function getRaceDetails(
+  year: string,
+  round: string
+) {
   const baseUrl = `https://api.jolpi.ca/ergast/f1/${year}/${round}`;
   const urls = [
     `${baseUrl}.json`,
@@ -443,22 +446,112 @@ export async function getRaceDetails(year: string, round: string) {
     `${baseUrl}/grid.json`,
     `${baseUrl}/practice1.json`,
     `${baseUrl}/practice2.json`,
-    `${baseUrl}/practice3.json`
+    `${baseUrl}/practice3.json`,
   ];
-
   try {
     const data: any[] = [];
     for (const url of urls) {
       const res = await fetch(url);
       data.push(await res.json());
-      await delay(300); // prevent hammering the API
+      await delay(300); // prevent API hammering
+    }
+    const [raceData, qualifyingData, resultsData] = data;
+    const raceInfo = raceData.MRData?.RaceTable?.Races?.[0] || {};
+    const country = raceInfo.Circuit?.Location?.country || "Unknown";
+    const countryCode = countryNameToCode[country] || "unknown";
+    const flag = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
+    const circuit = raceInfo.Circuit || {};
+    const raceResults = resultsData.MRData?.RaceTable?.Races?.[0]?.Results || [];
+
+    const raceCompleted = raceResults.length > 0;
+
+    if (!raceCompleted) {
+  const yearsToCheck = 10; // last 10 years
+  const prevWinners: any[] = [];
+  const currentCircuitId = raceInfo.Circuit?.circuitId;
+
+  for (let i = 1; i <= yearsToCheck; i++) {
+    const prevYear = String(Number(year) - i);
+    const prevRaceUrl = `https://api.jolpi.ca/ergast/f1/${prevYear}.json`;
+
+    try {
+      const prevRes = await fetch(prevRaceUrl);
+      const prevData = await prevRes.json();
+      const prevRaces = prevData.MRData?.RaceTable?.Races || [];
+
+      // Find race at the same circuit
+      const sameCircuitRace = prevRaces.find(
+        (race: any) => race.Circuit?.circuitId === currentCircuitId
+      );
+
+      if (sameCircuitRace?.Results?.length > 0) {
+        const winner = sameCircuitRace.Results[0];
+        const country = sameCircuitRace.Circuit?.Location?.country || "Unknown";
+        const countryCode = countryNameToCode[country] || "unknown";
+        const flag = `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png`;
+
+        prevWinners.push({
+          year: prevYear,
+          raceName: sameCircuitRace.raceName,
+          date: sameCircuitRace.date,
+          time: sameCircuitRace.time,
+          circuitName: sameCircuitRace.Circuit.circuitName,
+          locality: sameCircuitRace.Circuit.Location.locality,
+          country,
+          flag,
+          winner: {
+            name: `${winner.Driver.givenName} ${winner.Driver.familyName}`,
+            constructor: winner.Constructor.name,
+            points: winner.points,
+            position: winner.position,
+          },
+        });
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch previous winner for ${prevYear}`, error);
     }
 
-    const [raceData, qualifyingData, resultsData, gridData, fp1Data, fp2Data, fp3Data] = data;
+    await delay(300);
+  }
 
-    const raceInfo = raceData.MRData?.RaceTable?.Races?.[0] || {};
-    const raceResults = resultsData.MRData?.RaceTable?.Races?.[0]?.Results || [];
-    const circuit = raceInfo.Circuit || {};
+  return {
+    circuit,
+    raceInfo,
+    flag,
+    raceCompleted: false,
+    previousWinners: prevWinners,
+  };
+}
+
+
+
+    // Race completed - proceed as before
+
+    // Identify top 3 drivers
+    const top3 = raceResults.slice(0, 3);
+    const top3WithHeadshots = await Promise.all(
+      top3.map(async (driver: any) => {
+        const firstInitial = driver.Driver?.familyName || "";
+        const acronym = (firstInitial).toUpperCase().slice(0, 3);
+
+        const openF1Res = await fetch(
+          `https://api.openf1.org/v1/drivers?name_acronym=${acronym}&session_key=latest`
+        );
+
+        if (!openF1Res.ok) {
+          const errorText = await openF1Res.text();
+          console.error("API error response:", errorText);
+          throw new Error(`API request failed with status ${openF1Res.status}`);
+        }
+        const openF1Data = await openF1Res.json();
+
+        return {
+          driverId: driver.Driver.driverId,
+          name: `${driver.Driver.givenName} ${driver.Driver.familyName}`,
+          headshot: openF1Data?.[0]?.headshot_url || null,
+        };
+      })
+    );
 
     const fastestLap = raceResults.find(
       (driver: any) => driver.FastestLap?.rank === "1"
@@ -467,12 +560,18 @@ export async function getRaceDetails(year: string, round: string) {
     return {
       circuit,
       raceInfo,
-      qualifyingResults: qualifyingData.MRData?.RaceTable?.Races?.[0]?.QualifyingResults || [],
+      qualifyingResults:
+        qualifyingData.MRData?.RaceTable?.Races?.[0]?.QualifyingResults || [],
       raceResults,
+      top3WithHeadshots,
+      restResults: raceResults.slice(3),
       fastestLap,
+      flag,
+      raceCompleted: true,
     };
   } catch (error) {
     console.error("Error fetching race details:", error);
     return null;
   }
 }
+

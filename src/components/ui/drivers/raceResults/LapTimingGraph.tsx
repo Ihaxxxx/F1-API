@@ -20,6 +20,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import Spinner from "@/components/drivers/spinner";
+
 
 // Tooltip component
 const CustomTooltip = ({ active, payload }: any) => {
@@ -47,7 +49,7 @@ export default function LapTimingGraph({
   driverAndRoundDetail: driverAndRoundDetail;
 }) {
   const [chartData, setChartData] = useState<any[]>([]);
-
+  const [loading,setLoading] = useState<boolean>(true)
   useEffect(() => {
     const fetchData = async () => {
       const data = await lapTimes(
@@ -55,11 +57,15 @@ export default function LapTimingGraph({
         driverAndRoundDetail.round,
         Number(driverAndRoundDetail.year)
       );
-      console.log(data);
       setChartData(data);
+      setLoading(false)
     };
     fetchData().catch((err) => console.error("Error fetching lap times", err));
   }, [driverAndRoundDetail]);
+
+  if (loading) {
+    <Spinner text="Loading Graphs"/>
+  }
 
   return (
     <Card className="w-full bg-black border border-white rounded-2xl shadow-md mt-4">

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import { raceResultsPageHeading } from "@/utils/api-calls";
 import { useEffect, useState } from "react";
 import Spinner from "@/components/spinner";
@@ -55,53 +55,65 @@ export default function RaceResultPageHeading({
 }) {
   const [results, setResults] = useState<RaceResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
   useEffect(() => {
     const fetchData = async () => {
-      const data = await raceResultsPageHeading(
-        Number(driverAndRoundDetail.year),
-        driverAndRoundDetail.driverNameId,
-        driverAndRoundDetail.round
-      );
-      setLoading(false);
-      setResults(data ? [data] : []);
+      try {
+        const data = await raceResultsPageHeading(
+          Number(driverAndRoundDetail.year),
+          driverAndRoundDetail.driverNameId,
+          driverAndRoundDetail.round
+        );
+        setResults(data ? [data] : []);
+      } catch (err) {
+        console.error("Error fetching", err);
+      } finally {
+        setLoading(false);
+      }
     };
-    fetchData().catch((err) => console.error("Error fetching"));
-  }, []);
+    fetchData();
+  }, [driverAndRoundDetail]);
 
   if (loading) {
     return <Spinner text="Loading Results" />;
   }
 
+  // Only render content when loading is false
+  if (results.length === 0) {
+    return <p className="text-white">No results found.</p>;
+  }
+
+  const result = results[0];
+
   return (
-    <div className="flex flex-col gap-6 md:gap-0 md:flex-row justify-between items-start md:items-center border p-4 md:p-6 rounded-xl shadow-xl bg-foreground text-background bg-black">
+    <div className="flex flex-col gap-6 md:gap-0 md:flex-row justify-between items-start md:items-center border p-4 md:p-6 rounded-xl shadow-xl bg-black text-white">
       <div className="flex flex-col gap-3 flex-1">
         <div className="flex items-center gap-2 text-xl font-bold text-f1red-600">
           <img
-            src={results[0]?.circuit.flag}
-            alt={results[0]?.circuit.country}
+            src={result.circuit.flag}
+            alt={result.circuit.country}
             className="w-10 h-6"
           />
           <span>
-            {results[0]?.race.name} — Round {results[0]?.race.round}
+            {result.race.name} — Round {result.race.round}
           </span>
         </div>
 
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-gray-400">
           Location:{" "}
-          <span className="text-background font-medium">
-            {results[0]?.circuit.city}, {results[0]?.circuit.country}
+          <span className="font-medium">
+            {result.circuit.city}, {result.circuit.country}
           </span>{" "}
           | Date:{" "}
-          <span className="text-background font-medium">
-            {new Date(results[0]?.race.date).toLocaleDateString()}
+          <span className="font-medium">
+            {new Date(result.race.date).toLocaleDateString()}{" "}
+            {new Date(result.race.date).toLocaleTimeString()}
           </span>
         </p>
 
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-gray-400">
           Total Laps:{" "}
-          <span className="text-background font-semibold">
-            {results[0]?.race.totalLaps}
-          </span>
+          <span className="font-semibold">{result.race.totalLaps}</span>
         </p>
       </div>
 
@@ -112,79 +124,58 @@ export default function RaceResultPageHeading({
           <div className="flex items-center gap-2">
             <img
               className="h-8 w-8 rounded-full object-cover"
-              src={results[0]?.driver.image_url}
-              alt=""
+              src={result.driver.image_url}
+              alt={result.driver.fullName}
             />
             <h3 className="text-lg font-semibold text-accent">
-              {results[0]?.driver.fullName}
+              {result.driver.fullName}
             </h3>
           </div>
 
-          <p className="text-muted-foreground">
-            Nationality:{" "}
-            <span className="text-background font-medium">
-              {results[0]?.driver.nationality}
-            </span>
+          <p className="text-gray-400">
+            Nationality: <span className="font-medium">{result.driver.nationality}</span>
           </p>
-          <p className="text-muted-foreground">
-            Constructor:{" "}
-            <span className="text-background font-medium">
-              {results[0]?.constructor}
-            </span>
+          <p className="text-gray-400">
+            Constructor: <span className="font-medium">{result.constructor}</span>
           </p>
         </div>
 
         {/* Results Info */}
         <div className="flex flex-col gap-1 text-sm flex-1">
-          <p className="text-muted-foreground">
-            Position:{" "}
-            <span className="text-green-500 font-semibold">
-              {results[0]?.result.position || "N/A"}
-            </span>
+          <p className="text-gray-400">
+            Position: <span className="text-green-500 font-semibold">{result.result.position || "N/A"}</span>
           </p>
-          <p className="text-muted-foreground">
-            Points:{" "}
-            <span className="text-yellow-500 font-semibold">
-              {results[0]?.result.points || "0"}
-            </span>
+          <p className="text-gray-400">
+            Points: <span className="text-yellow-500 font-semibold">{result.result.points || "0"}</span>
           </p>
-          <p className="text-muted-foreground">
-            Gap to Leader:{" "}
-            <span className="text-background font-medium">
-              {results[0]?.result.gapToLeader || "N/A"}
-            </span>
+          <p className="text-gray-400">
+            Gap to Leader: <span className="font-medium">{result.result.gapToLeader || "N/A"}</span>
           </p>
         </div>
 
         {/* Fastest Lap Info */}
         <div className="flex flex-col gap-1 text-sm flex-1">
-          <p className="text-muted-foreground">
-            Fastest Lap Time:{" "}
-            <span className="text-background font-semibold">
-              {results[0]?.fastestLap.time || "N/A"}
-            </span>
+          <p className="text-gray-400">
+            Fastest Lap Time: <span className="font-semibold">{result.fastestLap.time || "N/A"}</span>
           </p>
-          <p className="text-muted-foreground">
+          <p className="text-gray-400">
             Qualifying Time:{" "}
-          <span className="text-background font-semibold">
-            {(() => {
-              const q = results[0]?.qualifying;
-              const times = [q?.Q1, q?.Q2, q?.Q3].filter(Boolean);
-              if (times.length === 0) return "N/A";
-              return times.sort(
-                (a, b) =>
-                  parseFloat(a!.replace(":", ".")) -
-                  parseFloat(b!.replace(":", "."))
-              )[0];
-            })()}
-          </span>
+            <span className="font-semibold">
+              {(() => {
+                const q = result.qualifying;
+                const times = [q?.Q1, q?.Q2, q?.Q3].filter(Boolean);
+                if (times.length === 0) return "N/A";
+                return times.sort(
+                  (a, b) =>
+                    parseFloat(a!.replace(":", ".")) -
+                    parseFloat(b!.replace(":", "."))
+                )[0];
+              })()}
+            </span>
           </p>
 
-          <p className="text-muted-foreground">
-            Fastest Lap Rank:{" "}
-            <span className="text-f1red-600 font-bold">
-              {results[0]?.fastestLap.rank || "N/A"}
-            </span>
+          <p className="text-gray-400">
+            Fastest Lap Rank: <span className="text-f1red-600 font-bold">{result.fastestLap.rank || "N/A"}</span>
           </p>
         </div>
       </div>

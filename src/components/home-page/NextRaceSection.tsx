@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { getCountdown } from "@/utils/countdown";
 import { getNextSession } from "@/utils/getNextSession";
+
 type Session = {
   date: string;
   time: string;
@@ -25,8 +26,8 @@ type NextRaceProps = {
         country: string;
       };
     };
-    date: string; // race day
-    time: string; // race time
+    date: string;
+    time: string;
     FirstPractice?: Session;
     SecondPractice?: Session;
     ThirdPractice?: Session;
@@ -41,37 +42,71 @@ export default function NextRaceSection({
 }: {
   race: NextRaceProps["race"];
 }) {
-  const raceDate = new Date(`${race.date}T${race.time}`);
+  const [nextSession, setNextSession] = useState<{
+    label: string;
+    time: Date;
+  } | null>(null);
+  const [countdown, setCountdown] = useState<{
+    days: string;
+    hours: string;
+    minutes: string;
+    seconds: string;
+  } | null>(null);
+
+  // Format dates consistently using UTC to avoid locale differences
+  const raceDate = new Date(`${race.date}T${race.time}Z`);
   const formattedDate = raceDate.toLocaleDateString("en-US", {
     weekday: "short",
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   });
 
   const formattedTime = raceDate.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
     timeZoneName: "short",
   });
 
-  const [nextSession, setNextSession] = useState(() => getNextSession(race));
-  const [countdown, setCountdown] = useState(
-    getCountdown(nextSession?.time || new Date(race.date + "T" + race.time))
-  );
-
   useEffect(() => {
-    const interval = setInterval(() => {
-      const session = getNextSession(race);
-      setNextSession(session);
+  const initialSession = getNextSession(race);
+  if (initialSession) {
+    const cd = getCountdown(initialSession.time);
+    if (cd) {
+      setNextSession(initialSession);
+      setCountdown({
+        days: cd.days.toString(),
+        hours: cd.hours.toString(),
+        minutes: cd.minutes.toString(),
+        seconds: cd.seconds.toString(),
+      });
+    }
+  }
 
-      const updated = session ? getCountdown(session.time) : null;
-      setCountdown(updated);
-      if (!updated) clearInterval(interval);
-    }, 1000);
+  const interval = setInterval(() => {
+    const session = getNextSession(race);
+    if (session) {
+      const cd = getCountdown(session.time);
+      if (cd) {
+        setNextSession(session);
+        setCountdown({
+          days: cd.days.toString(),
+          hours: cd.hours.toString(),
+          minutes: cd.minutes.toString(),
+          seconds: cd.seconds.toString(),
+        });
+      }
+    } else {
+      setCountdown(null);
+      clearInterval(interval);
+    }
+  }, 1000);
 
-    return () => clearInterval(interval);
-  }, [race]);
+  return () => clearInterval(interval);
+}, [race]);
+
 
   return (
     <section className="relative bg-black border-t border-zinc-800">
@@ -133,7 +168,8 @@ export default function NextRaceSection({
             <a
               target="_blank"
               rel="noopener noreferrer"
-              className=" text-red-500 transition"
+              href={race.Circuit.url}
+              className="text-red-500 transition"
             >
               {race.Circuit.circuitName}
             </a>
@@ -148,9 +184,10 @@ export default function NextRaceSection({
             <a
               target="_blank"
               rel="noopener noreferrer"
+              href={race.url}
               className="inline-block bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-md text-base font-medium transition"
             >
-              View Details About Race Have to work on it
+              View Details About Race
             </a>
           </div>
         </div>

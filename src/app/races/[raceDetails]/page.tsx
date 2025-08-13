@@ -6,7 +6,6 @@ export default function page() {
     const [year, round] = (params?.raceDetails as string).split("-");
   return (
     <>
-        <div>page</div>
         <RaceDetails year={year} round={round}/>
     </>
   )
