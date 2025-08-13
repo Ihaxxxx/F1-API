@@ -31,7 +31,7 @@ A fan-made Formula 1 dashboard built with **Next.js** and **Tailwind CSS**, disp
 ## 🚀 Installation
 
 ```bash
-git clone https://github.com/your-username/f1-dashboard.git
+git clone https://github.com/Ihaxxxx/F1-API
 cd f1-dashboard
 npm install
 npm run dev
